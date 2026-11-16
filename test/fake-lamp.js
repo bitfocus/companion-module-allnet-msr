@@ -30,7 +30,14 @@ export function createFakeLamp({ user = 'remote', pass = 'secret', colourMax = 1
 
 	const fmt = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(2))
 
+	// delaySwitchMs: hold switch requests back, to test what happens while one is in flight
+	lamp.delaySwitchMs = 0
 	lamp.server = http.createServer((req, res) => {
+		if (lamp.delaySwitchMs && req.url.startsWith('/xml/jsonswitch.php')) {
+			setTimeout(() => handle(req, res), lamp.delaySwitchMs)
+		} else handle(req, res)
+	})
+	const handle = (req, res) => {
 		const url = new URL(req.url, 'http://x')
 		lamp.requests.push(url.pathname + url.search)
 		const send = (code, body) => {
@@ -95,7 +102,7 @@ export function createFakeLamp({ user = 'remote', pass = 'secret', colourMax = 1
 			return send(200, { result })
 		}
 		send(404, 'not found')
-	})
+	}
 
 	lamp.listen = () =>
 		new Promise((resolve) => lamp.server.listen(0, '127.0.0.1', () => resolve(lamp.server.address().port)))

@@ -386,6 +386,50 @@ await step('destroy clears timers and blink', () => {
 	assert.equal(m.client, null)
 })
 
+await step('destroy or config change during a blink: no warning, no updates afterwards', async () => {
+	const slow = createFakeLamp()
+	const p = await slow.listen()
+	const m3 = new Module({ label: 'allnet' })
+	try {
+		await m3.init({ ...baseConfig, port: p, pollInterval: 0 }, true, { password: 'secret' })
+		await waitFor(() => m3.status === 'ok' && m3.discovered, 3000, 'ok')
+		// config change while a blink step waits on the lamp
+		slow.delaySwitchMs = 300
+		await run(m3, 'blink', { colour: 'red', count: 0, interval: 250, end: 'off' })
+		await sleep(50)
+		await m3.configUpdated({ ...baseConfig, port: p, pollInterval: 0 }, { password: 'secret' })
+		await sleep(400)
+		assert.ok(
+			!m3.logs.some(([lvl, msg]) => lvl === 'warn' && /Blinking stopped/.test(msg)),
+			'no warning after config change',
+		)
+		assert.equal(m3.isBlinking(), false)
+		// destroy while a blink step waits on the lamp
+		await waitFor(() => m3.status === 'ok' && m3.discovered, 3000, 'ok again')
+		await run(m3, 'blink', { colour: 'green', count: 0, interval: 250, end: 'off' })
+		await sleep(50)
+		let after = 0
+		const origVars = m3.setVariableValues.bind(m3)
+		const origFb = m3.checkFeedbacks.bind(m3)
+		await m3.destroy()
+		m3.setVariableValues = (v) => {
+			after++
+			origVars(v)
+		}
+		m3.checkFeedbacks = (...ids) => {
+			after++
+			origFb(...ids)
+		}
+		await sleep(400)
+		assert.equal(after, 0, 'no variable or feedback updates after destroy')
+		assert.ok(!m3.logs.some(([lvl, msg]) => lvl === 'warn' && /Blinking stopped/.test(msg)), 'no warning after destroy')
+		assert.equal(m3.blinkState, null)
+	} finally {
+		await m3.destroy()
+		await slow.close()
+	}
+})
+
 await step('Actors with a 0–255 range are scaled from percent', async () => {
 	const lamp255 = createFakeLamp({ colourMax: 255 })
 	const p = await lamp255.listen()

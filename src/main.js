@@ -118,7 +118,9 @@ export default class AllnetInstance extends InstanceBase {
 		this.generation++
 		if (this.pollTimer) clearTimeout(this.pollTimer)
 		this.pollTimer = null
-		this.cancelBlink()
+		// Drop any blink without pushing variables or feedbacks: the instance may be going away.
+		if (this.blinkState?.timer) clearTimeout(this.blinkState.timer)
+		this.blinkState = null
 		this.client?.destroy()
 		this.client = null
 		this.polling = false
@@ -372,8 +374,14 @@ export default class AllnetInstance extends InstanceBase {
 	}
 
 	/** Run a batch of writes, update state and surface connection problems. */
-	async runWrites(jobs) {
+	async runWrites(jobs, gen = this.generation) {
 		const results = await Promise.allSettled(jobs)
+		// The connection was restarted or destroyed while the writes were in flight: report nothing.
+		if (gen !== this.generation) {
+			const failed = results.find((r) => r.status === 'rejected')
+			if (failed) throw failed.reason
+			return
+		}
 		this.pushVariables()
 		this.checkStateFeedbacks()
 		const failed = results.find((r) => r.status === 'rejected')
@@ -394,6 +402,7 @@ export default class AllnetInstance extends InstanceBase {
 	async setChannels(target, fade = 0, { fromBlink = false } = {}) {
 		if (!fromBlink) this.cancelBlink()
 		const client = this.requireClient()
+		const gen = this.generation
 		const jobs = []
 		for (const channel of CHANNEL_IDS) {
 			if (target[channel] === undefined || target[channel] === null) continue
@@ -407,9 +416,11 @@ export default class AllnetInstance extends InstanceBase {
 				)
 			}
 			const value = this.toDeviceValue(actor, target[channel])
-			jobs.push(client.setActor(actor, value, fade).then(() => this.recordWrite(actor, value)))
+			jobs.push(
+				client.setActor(actor, value, fade).then(() => gen === this.generation && this.recordWrite(actor, value)),
+			)
 		}
-		await this.runWrites(jobs)
+		await this.runWrites(jobs, gen)
 	}
 
 	async adjustChannel(channel, delta, fade = 0) {
@@ -429,7 +440,15 @@ export default class AllnetInstance extends InstanceBase {
 		}
 		const item = this.resolveItem(actor)
 		const optimistic = sendValue === 'toggle' ? (item?.value ? 0 : 1) : sendValue
-		await this.runWrites([client.setActor(actor, sendValue, fade).then(() => this.recordWrite(actor, optimistic))])
+		const gen = this.generation
+		await this.runWrites(
+			[
+				client
+					.setActor(actor, sendValue, fade)
+					.then(() => gen === this.generation && this.recordWrite(actor, optimistic)),
+			],
+			gen,
+		)
 	}
 
 	async setBuzzer(mode) {
@@ -480,6 +499,8 @@ export default class AllnetInstance extends InstanceBase {
 			try {
 				await this.setChannels(turningOn ? state.target : ZERO, 0, { fromBlink: true })
 			} catch (err) {
+				// Stopped meanwhile (config change, destroy, another colour command): nothing to report.
+				if (this.blinkState !== state) return
 				this.log('warn', `Blinking stopped: ${err.message}`)
 				this.clearBlink(state)
 				return
