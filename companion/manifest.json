@@ -1,0 +1,31 @@
+{
+	"$schema": "../node_modules/@companion-module/base/assets/manifest.schema.json",
+	"type": "connection",
+	"id": "allnet-msr",
+	"name": "ALLNET PoE RGBW Lamp / MSR",
+	"shortname": "allnet",
+	"description": "Control the ALLNET PoE RGBW signal lamp and other ALLNET MSR devices over their JSON API",
+	"version": "0.0.0",
+	"license": "MIT",
+	"repository": "git+https://github.com/bitfocus/companion-module-allnet-msr.git",
+	"bugs": "https://github.com/bitfocus/companion-module-allnet-msr/issues",
+	"maintainers": [
+		{
+			"name": "Tarald Moe Bjølseth",
+			"github": "taraldmoe"
+		}
+	],
+	"runtime": {
+		"type": "node22",
+		"api": "nodejs-ipc",
+		"apiVersion": "0.0.0",
+		"entrypoint": "../src/main.js",
+		"permissions": {
+			"filesystem": true
+		}
+	},
+	"legacyIds": [],
+	"manufacturer": "ALLNET",
+	"products": ["ALL-PoE-RGBW-LAMP", "ALL-PoE-CO2-LAMP", "MSR devices"],
+	"keywords": ["rgbw", "signal light", "status light", "tally", "poe", "buzzer"]
+}

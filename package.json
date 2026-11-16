@@ -1,0 +1,29 @@
+{
+	"name": "allnet-msr",
+	"version": "0.3.0",
+	"main": "src/main.js",
+	"type": "module",
+	"scripts": {
+		"format": "prettier -w .",
+		"package": "companion-module-build",
+		"test": "node --import ./test/register.js test/run.js && node --import ./test/register.js test/https.js"
+	},
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/bitfocus/companion-module-allnet-msr.git"
+	},
+	"engines": {
+		"node": "^26",
+		"yarn": "^4"
+	},
+	"dependencies": {
+		"@companion-module/base": "~2.1.3"
+	},
+	"devDependencies": {
+		"@companion-module/tools": "^3.1.1",
+		"prettier": "^3.9.9"
+	},
+	"prettier": "@companion-module/tools/.prettierrc.json",
+	"packageManager": "yarn@4.18.1"
+}
